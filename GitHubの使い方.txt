@@ -1,0 +1,22 @@
+GITHUG メモ
+
+https://github.com/mayrin0908/AIWORK をブラウザで開くと、ファイルがアップロードされているのを確認できます。
+
+今後ファイルを更新したときのプッシュ手順：
+
+PowerShell で AIWORK フォルダに移動してから：
+
+
+git add .
+git commit -m "更新内容のメモ"
+git push
+この3行で GitHub に反映されます。
+
+
+Git のインストール（winget 経由）
+GitHub CLI のインストールと認証
+ローカルフォルダを Git リポジトリとして初期化
+GitHub リポジトリへの プッシュ
+次回からは git add . → git commit -m "メモ" → git push の3コマンドだけで更新できます。何かあればいつでも聞いてください。
+
+
