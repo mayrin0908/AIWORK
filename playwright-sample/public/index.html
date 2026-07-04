@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>サンプルログイン</title>
+  <style>
+    body { font-family: sans-serif; max-width: 420px; margin: 60px auto; padding: 0 16px; }
+    h1 { font-size: 1.4rem; }
+    label { display: block; margin: 12px 0 4px; }
+    input { width: 100%; padding: 8px; box-sizing: border-box; }
+    button { margin-top: 16px; padding: 10px 16px; cursor: pointer; }
+    .error { color: #c00; margin-top: 12px; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <!-- ログイン画面 -->
+  <section id="login-view">
+    <h1>ログイン</h1>
+    <form id="login-form">
+      <label for="email">メールアドレス</label>
+      <input id="email" name="email" type="email" autocomplete="username" />
+
+      <label for="password">パスワード</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" />
+
+      <button type="submit">ログイン</button>
+      <p id="error-message" class="error hidden" role="alert">メールアドレスまたはパスワードが正しくありません。</p>
+    </form>
+  </section>
+
+  <!-- ダッシュボード画面 -->
+  <section id="dashboard-view" class="hidden">
+    <h1>ダッシュボード</h1>
+    <p data-testid="welcome">ようこそ、<span id="user-name"></span> さん</p>
+    <button id="logout-button" type="button">ログアウト</button>
+  </section>
+
+  <script>
+    // 学習用のダミー認証（本番では絶対にこんな実装をしないこと）
+    const VALID_EMAIL = 'user@example.com';
+    const VALID_PASSWORD = 'password123';
+    const STORAGE_KEY = 'auth-user'; // ログイン状態を保存する localStorage のキー
+
+    const loginView = document.getElementById('login-view');
+    const dashboardView = document.getElementById('dashboard-view');
+    const errorMessage = document.getElementById('error-message');
+
+    // ダッシュボードを表示する（ログイン済みの状態）
+    function showDashboard(email) {
+      document.getElementById('user-name').textContent = email;
+      errorMessage.classList.add('hidden');
+      loginView.classList.add('hidden');
+      dashboardView.classList.remove('hidden');
+      history.replaceState(null, '', '/dashboard');
+    }
+
+    // ページ読み込み時に localStorage を見て、ログイン状態を復元する。
+    // storageState で localStorage を注入すると、ログイン操作なしでここが効く。
+    const savedUser = localStorage.getItem(STORAGE_KEY);
+    if (savedUser) {
+      showDashboard(savedUser);
+    }
+
+    document.getElementById('login-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      if (email === VALID_EMAIL && password === VALID_PASSWORD) {
+        localStorage.setItem(STORAGE_KEY, email); // ログイン状態を永続化
+        showDashboard(email);
+      } else {
+        errorMessage.classList.remove('hidden');
+      }
+    });
+
+    document.getElementById('logout-button').addEventListener('click', () => {
+      localStorage.removeItem(STORAGE_KEY); // ログイン状態を破棄
+      dashboardView.classList.add('hidden');
+      loginView.classList.remove('hidden');
+      document.getElementById('login-form').reset();
+      history.replaceState(null, '', '/');
+    });
+  </script>
+</body>
+</html>

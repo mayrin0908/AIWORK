@@ -1,0 +1,144 @@
+name: Playwright Tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  # ── ブラウザごとに並列実行（matrix）─────────────────────────────
+  test:
+    name: Test (${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    strategy:
+      # 1ブラウザが落ちても他のブラウザのジョブは最後まで走らせる
+      fail-fast: false
+      matrix:
+        include:
+          # chromium ジョブでは認証フロー（setup→authenticated）も一緒に流す。
+          # authenticated は setup に依存するので setup が自動で先に走る。
+          - browser: chromium
+            extra: --project=authenticated
+          - browser: firefox
+            extra: ""
+          - browser: webkit
+            extra: ""
+    defaults:
+      run:
+        working-directory: playwright-sample
+    env:
+      # blob レポートのファイル名をブラウザ別にして、統合時の衝突を防ぐ
+      BLOB_REPORT_NAME: report-${{ matrix.browser }}.zip
+    steps:
+      - name: リポジトリを取得
+        uses: actions/checkout@v4
+
+      - name: Node.js をセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: playwright-sample/package-lock.json
+
+      - name: 依存をインストール
+        run: npm ci
+
+      - name: ブラウザをインストール（該当ブラウザのみ）
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: E2E テストを実行
+        run: npx playwright test --project=${{ matrix.browser }} ${{ matrix.extra }}
+
+      - name: blob レポートをアップロード
+        # テストが失敗しても必ずアップロードして統合できるようにする
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: blob-report-${{ matrix.browser }}
+          path: playwright-sample/blob-report
+          retention-days: 7
+
+  # ── 全ブラウザの結果を統合し、PRにコメント ──────────────────────
+  merge-report:
+    name: レポート統合 & PRコメント
+    # test ジョブが失敗しても結果を統合・報告したいので !cancelled()
+    if: ${{ !cancelled() }}
+    needs: [test]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: playwright-sample
+    permissions:
+      contents: read
+      pull-requests: write # PRへコメントするために必要
+    steps:
+      - name: リポジトリを取得
+        uses: actions/checkout@v4
+
+      - name: Node.js をセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: playwright-sample/package-lock.json
+
+      - name: 依存をインストール
+        run: npm ci
+
+      - name: 全ブラウザの blob レポートをダウンロード
+        uses: actions/download-artifact@v4
+        with:
+          path: playwright-sample/all-blob-reports
+          pattern: blob-report-*
+          merge-multiple: true
+
+      - name: HTML と JSON に統合
+        run: |
+          npx playwright merge-reports --reporter html ./all-blob-reports
+          npx playwright merge-reports --reporter json ./all-blob-reports > merged.json
+
+      - name: 統合 HTML レポートをアップロード
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-report
+          path: playwright-sample/playwright-report
+          retention-days: 14
+
+      - name: PR に結果をコメント
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = JSON.parse(fs.readFileSync('playwright-sample/merged.json', 'utf8'));
+            const s = report.stats;
+            const total = s.expected + s.unexpected + s.flaky + s.skipped;
+            const ok = s.unexpected === 0;
+            const durationSec = (s.duration / 1000).toFixed(1);
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const marker = '<!-- playwright-report-comment -->';
+            const body = [
+              marker,
+              `## ${ok ? '✅ 成功' : '❌ 失敗'} — Playwright E2E`,
+              '',
+              '| 結果 | 件数 |',
+              '| :-- | --: |',
+              `| ✅ 成功 | ${s.expected} |`,
+              `| ❌ 失敗 | ${s.unexpected} |`,
+              `| ⚠️ Flaky | ${s.flaky} |`,
+              `| ⏭️ スキップ | ${s.skipped} |`,
+              `| **合計** | **${total}** |`,
+              '',
+              `所要時間: ${durationSec}s ・ [HTMLレポート(Artifacts)を見る](${runUrl})`,
+            ].join('\n');
+            // 既存の自動コメントがあれば更新、なければ新規作成（PRを重複で汚さない）
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
