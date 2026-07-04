@@ -1,0 +1,18 @@
+{
+  "name": "playwright-sample",
+  "version": "1.0.0",
+  "description": "Playwright E2Eテスト自動化のサンプルプロジェクト（自己完結型・オフライン動作）",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "report": "playwright show-report",
+    "codegen": "playwright codegen http://localhost:3000",
+    "start": "node server.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1"
+  }
+}

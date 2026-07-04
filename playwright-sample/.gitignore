@@ -1,0 +1,8 @@
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/all-blob-reports/
+/merged.json
+/playwright/.cache/
+/playwright/.auth/
