@@ -43,9 +43,21 @@
     const VALID_PASSWORD = 'password123';
     const STORAGE_KEY = 'auth-user'; // ログイン状態を保存する localStorage のキー
 
+    // ── アカウントロック機能 ──────────────────────────
+    const LOCK_THRESHOLD = 3;   // 連続でこの回数失敗するとロック
+    let failCount = 0;          // 連続失敗回数（ログイン成功でリセット）
+    const MSG_INVALID = 'メールアドレスまたはパスワードが正しくありません。';
+    const MSG_LOCKED  = 'アカウントがロックされています。';
+
     const loginView = document.getElementById('login-view');
     const dashboardView = document.getElementById('dashboard-view');
     const errorMessage = document.getElementById('error-message');
+
+    // エラー領域に指定したメッセージを表示する
+    function showError(text) {
+      errorMessage.textContent = text;
+      errorMessage.classList.remove('hidden');
+    }
 
     // ダッシュボードを表示する（ログイン済みの状態）
     function showDashboard(email) {
@@ -68,11 +80,23 @@
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
 
+      // すでにロック済みなら、資格情報が正しくても拒否する
+      if (failCount >= LOCK_THRESHOLD) {
+        showError(MSG_LOCKED);
+        return;
+      }
+
       if (email === VALID_EMAIL && password === VALID_PASSWORD) {
+        failCount = 0;                            // 成功で失敗カウントをリセット
         localStorage.setItem(STORAGE_KEY, email); // ログイン状態を永続化
         showDashboard(email);
       } else {
-        errorMessage.classList.remove('hidden');
+        failCount++;                              // 失敗を数える
+        if (failCount >= LOCK_THRESHOLD) {
+          showError(MSG_LOCKED);                  // 3回到達 → ロック発動
+        } else {
+          showError(MSG_INVALID);                 // それ未満 → 通常の認証エラー
+        }
       }
     });
 
